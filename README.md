@@ -52,11 +52,6 @@ npx ts-node likeAndRepostBot.ts
 - Repostar menções ao seu usuário.
 - Operar em intervalos definidos (padrão: 25 minutos).
 
-## Execute
-```bash
-npx ts-node likeAndRepostBot.ts
-```
-
 ## Licença
 
 Licenciado sob a MIT License.

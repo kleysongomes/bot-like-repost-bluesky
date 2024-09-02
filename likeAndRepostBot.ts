@@ -7,7 +7,7 @@ const processedMentions = new Set<string>();
 const processedHashtagPosts = new Set<string>();
 
 const API_URL = 'https://bsky.social/xrpc';
-const TWENTY_FIVE_MINUTES = 1500000; // 25 minutos em milissegundos
+const TWENTY_FIVE_MINUTES = 3600000; // 1 hora em milissegundos
 const ONE_HOUR = 3600000; // 1 hora em milissegundos
 const FIVE_SECONDS = 5000; // 5 segundos em milissegundos
 

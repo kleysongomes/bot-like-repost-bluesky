@@ -1,27 +1,43 @@
 import axios, { AxiosError } from 'axios';
 import * as dotenv from 'dotenv';
+import * as fs from 'fs';
 
 dotenv.config();
 
-const processedMentions = new Set<string>();
-const processedHashtagPosts = new Set<string>();
-
-const API_URL = 'https://bsky.social/xrpc';
+const API_URL = 'https://bsky.social/xrpc'; // Definindo o API_URL
 const TWENTY_FIVE_MINUTES = 3600000; // 1 hora em milissegundos
 const ONE_HOUR = 3600000; // 1 hora em milissegundos
 const FIVE_SECONDS = 5000; // 5 segundos em milissegundos
-
 const hashtags = ['#bolhadev', '#studytech', '#dev', '#studytwt', '#bolhasec', '#studysky'];
+
+const PERSISTED_LIKES_FILE = 'likedPosts.json';
+
+// Função para carregar curtidas persistidas
+function loadPersistedLikes(): Set<string> {
+  try {
+    const data = fs.readFileSync(PERSISTED_LIKES_FILE, 'utf8');
+    return new Set(JSON.parse(data));
+  } catch (error) {
+    console.log('Nenhuma curtida persistida encontrada, começando um novo arquivo.');
+    return new Set<string>();
+  }
+}
+
+// Função para salvar curtidas persistidas
+function savePersistedLikes(likedPosts: Set<string>): void {
+  try {
+    fs.writeFileSync(PERSISTED_LIKES_FILE, JSON.stringify([...likedPosts]), 'utf8');
+    console.log('Curtidas salvas com sucesso.');
+  } catch (error) {
+    console.error('Erro ao salvar curtidas:', error);
+  }
+}
+
+let persistedLikes = loadPersistedLikes();
 
 interface AccessTokenResponse {
   accessJwt: string;
   did: string;
-}
-
-interface Mention {
-  cid: string;
-  uri: string;
-  reason: string;
 }
 
 interface Post {
@@ -36,50 +52,6 @@ async function getAccessToken(): Promise<{ token: string; did: string }> {
   });
 
   return { token: data.accessJwt, did: data.did };
-}
-
-async function getMentions(token: string): Promise<Mention[]> {
-  console.log('Buscando menções...');
-  const { data } = await axios.get(`${API_URL}/app.bsky.notification.listNotifications`, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
-
-  const mentions = data.notifications.filter((notification: Mention) => notification.reason === 'mention');
-  console.log(`Foram encontradas ${mentions.length} menções.`);
-  return mentions;
-}
-
-async function repost(mention: Mention, token: string, did: string): Promise<void> {
-  if (processedMentions.has(mention.cid)) {
-    console.log(`Menção já repostada: ${mention.cid}`);
-    return;
-  }
-
-  console.log(`Repostando menção: ${mention.cid}`);
-
-  const repostData = {
-    $type: 'app.bsky.feed.repost',
-    repo: did,
-    collection: 'app.bsky.feed.repost',
-    record: {
-      subject: {
-        uri: mention.uri,
-        cid: mention.cid
-      },
-      createdAt: new Date().toISOString()
-    }
-  };
-
-  await axios.post(`${API_URL}/com.atproto.repo.createRecord`, repostData, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
-
-  processedMentions.add(mention.cid);
-  console.log(`Menção repostada com sucesso: ${mention.cid}`);
 }
 
 async function getHashtagPosts(token: string, hashtag: string): Promise<Post[]> {
@@ -101,8 +73,8 @@ async function getHashtagPosts(token: string, hashtag: string): Promise<Post[]> 
 }
 
 async function likePost(post: Post, token: string, did: string): Promise<void> {
-  if (processedHashtagPosts.has(post.cid)) {
-    console.log(`Post já curtido: ${post.cid}`);
+  if (persistedLikes.has(post.cid)) {
+    console.log(`Post já curtido (persistido): ${post.cid}`);
     return;
   }
 
@@ -121,12 +93,15 @@ async function likePost(post: Post, token: string, did: string): Promise<void> {
   try {
     await axios.post(`${API_URL}/com.atproto.repo.createRecord`, likeData, {
       headers: {
-        Authorization: `Bearer ${token}`
+      Authorization: `Bearer ${token}`
       }
     });
 
-    processedHashtagPosts.add(post.cid);
+    persistedLikes.add(post.cid);
     console.log(`Post curtido com sucesso: ${post.cid}`);
+
+    // Salva as curtidas persistidas
+    savePersistedLikes(persistedLikes);
 
     // Atraso de 5 segundos entre as curtidas
     await new Promise(resolve => setTimeout(resolve, FIVE_SECONDS));
@@ -164,17 +139,6 @@ async function main(): Promise<void> {
 
     const { token, did } = await getAccessToken();
 
-    // Repostar menções
-    const mentions = await getMentions(token);
-
-    if (mentions.length === 0) {
-      console.log('Nenhuma menção encontrada');
-    } else {
-      for (const mention of mentions) {
-        await repost(mention, token, did);
-      }
-    }
-
     // Processar todas as hashtags
     await processHashtags(token, did);
 
@@ -200,7 +164,5 @@ setInterval(() => {
 }, TWENTY_FIVE_MINUTES);
 
 setInterval(() => {
-  processedMentions.clear();
-  processedHashtagPosts.clear();
-  console.log('Limpeza dos registros de menções e posts com hashtag realizada');
+  console.log('Limpeza dos registros de curtidas realizada');
 }, ONE_HOUR);

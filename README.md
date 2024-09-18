@@ -8,7 +8,7 @@ Este bot automatiza a tarefa de curtir posts com hashtags específicas e reposta
 - TypeScript
 - Conta na Bluesky
 
-## Instalação
+## Instalação 
 
 1. Clone o repositório:
    ```bash
